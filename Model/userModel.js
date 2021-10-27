@@ -22,6 +22,15 @@ const UserModel = new Schema({
     type: Boolean,
     default: false,
   },
+  transfer: [
+    {
+      id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Transaction',
+      },
+      sender: Boolean,
+    },
+  ],
   pin: String,
   resetToken: String,
   ipAddress: String,
