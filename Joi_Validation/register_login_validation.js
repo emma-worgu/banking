@@ -2,11 +2,20 @@ const joi = require('joi');
 
 const registerValidation = (data) => {
   const schema = joi.object({
-    name: joi.string().required(),
+    firstName: joi.string().required(),
+    lastName: joi.string().required(),
     phone: joi.number().required(),
     email: joi.string().email().required(),
     password: joi.string().required(),
-    ip: joi.string().required(),
+    dateOfBirth: joi.string().required(),
+    gender: joi.string().required(),
+    nextOfKin: joi.string().required(),
+    houseAddress: joi.string().required(),
+    city: joi.string().required(),
+    state: joi.string().required(),
+    country: joi.string().required(),
+    zipcode: joi.string().required(),
+    // ip: joi.string().required(),
   });
   return schema.validate(data);
 };

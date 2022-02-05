@@ -1,6 +1,8 @@
 const route = require('express').Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
+const nodemailer = require('nodemailer');
 
 const UserModel = require('../Model/userModel');
 const { UserAuthMiddleware } = require('../Middlewares/authMiddleware');
@@ -8,6 +10,16 @@ const { ipLookup } = require('../functions/ipLookup');
 const { registerValidation, loginValidation } = require('../Joi_Validation/register_login_validation');
 const TranxModel = require('../Model/tranxModel');
 const refGen = require('../functions/refGen');
+const WithdrawalModel = require('../Model/withdrawalModel');
+
+const admin_transporter = nodemailer.createTransport({
+  host: 'smtp.elasticemail.com',
+  port: 2525,
+  auth: {
+    user: process.env.Email,
+    pass: process.env.Pass,
+  },
+});
 
 route.post('/register', async (req, res) => {
   const { error } = registerValidation(req.body);
@@ -47,32 +59,78 @@ route.post('/register', async (req, res) => {
 
     await generateAccountNumber();
 
-    await ipLookup(req.body.ip, (err, data) => {
-      if (err) {
-        return res.status(400).json({
-          message: 'Something Went Wrong',
-        });
-      }
+    // await ipLookup(req.body.ip, (err, data) => {
+    //   if (err) {
+    //     return res.status(400).json({
+    //       message: 'Something Went Wrong',
+    //     });
+    //   }
 
-      if (data.toLowerCase() === 'nigeria') {
-        isClient = false;
-      } else {
-        isClient = true;
-      }
-    });
+    //   if (data.toLowerCase() === 'nigeria') {
+    //     isClient = false;
+    //   } else {
+    //     isClient = true;
+    //   }
+    // });
+
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      dateOfBirth,
+      gender,
+      nextOfKin,
+      houseAddress,
+      city,
+      state,
+      country,
+      zipcode,
+    } = req.body;
 
     const user = new UserModel({
-      name: req.body.name,
-      email: req.body.email,
-      phoneNumber: req.body.phone,
+      firstName,
+      lastName,
+      email,
+      phone,
+      gender,
+      dateOfBirth,
+      nextOfKin,
+      address: {
+        houseAddress,
+        city,
+        state,
+        country,
+        zipcode,
+      },
       isClient,
       ipAddress: req.body.ip,
       accountNumber,
       password: hashedPassword,
     });
+
+    console.log(user);
     const token = jwt.sign({ _id: user._id }, process.env.UserToken, { expiresIn: 60 * 60 });
     res.header('auth-token', token);
     user.save();
+
+    const mailSend = {
+      from: {
+        name: 'MainTrust Bank',
+        address: process.env.Email,
+      },
+      to: user.email,
+      subject: 'Welcome to MainTrust Bank',
+      text: `Welcome Onboard, ${user.firstName}`,
+    };
+
+    admin_transporter.sendMail(mailSend, (err, info) => {
+      if (err) {
+        console.log(`Error: ${err.response}`);
+      } else {
+        console.log(`The message was sent ${info.response}`);
+      }
+    });
 
     return (res.json({
       token,
@@ -119,11 +177,7 @@ route.post('/login', async (req, res) => {
     return res.json({
       token,
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        acct: user.accountNumber,
+        name: user.firstName,
       },
     });
   } catch (err) {
@@ -139,11 +193,13 @@ route.get('/', UserAuthMiddleware, async (req, res) => {
 
     return res.status(200).json({
       user: {
-        name: user.name,
+        name: user.firstName,
+        lastName: user.lastName,
         email: user.email,
-        phone: user.phoneNumber,
+        phone: user.phone,
         address: user.address,
         acctNumber: user.accountNumber,
+        gender: user.gender,
         isClient: user.isClient,
         accountBalance: user.accountBalance,
       },
@@ -332,7 +388,7 @@ route.put('/update-user', UserAuthMiddleware, async (req, res) => {
 route.get('/transactions', UserAuthMiddleware, async (req, res) => {
   try {
     const user = await UserModel.findById(req.user);
-    const transactions = await TranxModel.find({ sender: user._id }).sort({ _id: 'desc' });
+    const transactions = await TranxModel.find({ sender: user._id }).sort({ _id: 'desc' }).populate('receiver');
 
     if (transactions.length === 0) {
       return res.status(404).json({
@@ -340,16 +396,142 @@ route.get('/transactions', UserAuthMiddleware, async (req, res) => {
       });
     }
 
-    const receiver = await UserModel.findById(transactions.receiver);
-
     return res.status(200).json({
-      message: {
-        transactions,
-        receiver: {
-          name: receiver.name,
-          acctNumber: receiver.accountNumber,
+      transactions,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Internal Server Error',
+    });
+  }
+});
+
+route.post('/deposit', UserAuthMiddleware, async (req, res) => {
+  try {
+    const user = await UserModel.findById(req.user);
+
+    if (user.isClient) {
+      const options = {
+        method: 'GET',
+        url: `https://api.flutterwave.com/v3/transactions/${req.body.transaction_id}/verify`,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: process.env.flutterSecKey,
+        },
+      };
+      // axios(options, (error, response) => {
+      //   if (error) throw new Error(error);
+      //   console.log(response.body);
+      // });
+
+      const response = await axios(options);
+      if (response.status !== 200) {
+        return res.status(404).json({
+          status: 'failed',
+          message: 'Verification Failed!!',
+        });
+      }
+
+      const transDoc = new TranxModel({
+        sender: user._id,
+        receiver: user._id,
+        amount: response.data.data.amount,
+        reason: 'Self Deposit',
+        ref: response.data.data.tx_ref,
+        date: response.data.data.created_at,
+      });
+
+      transDoc.save();
+
+      // After Successfully Verifying the Payment this will give value to the customer
+      const giveCustomerValue = await UserModel.findByIdAndUpdate(user._id, {
+        accountBalance: user.accountBalance + response.data.data.amount,
+        $push: {
+          transfer: {
+            id: transDoc._id,
+            sender: true,
+          },
+        },
+      });
+
+      giveCustomerValue.save();
+
+      return res.status(200).json({
+        message: 'Success',
+      });
+    }
+
+    const ref = refGen(15);
+
+    const transDoc = new TranxModel({
+      sender: user._id,
+      receiver: user._id,
+      amount: req.body.amount,
+      reason: 'Self Deposit',
+      ref,
+      date: new Date(),
+    });
+
+    transDoc.save();
+
+    // After Successfully Verifying the Payment this will give value to the customer
+    const giveCustomerValue = await UserModel.findByIdAndUpdate(user._id, {
+      accountBalance: user.accountBalance + req.body.amount,
+      $push: {
+        transfer: {
+          id: transDoc._id,
+          sender: true,
         },
       },
+    });
+
+    giveCustomerValue.save();
+
+    return res.status(200).json({
+      message: 'Success',
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: 'Internal Server Error',
+    });
+  }
+});
+
+route.post('/withdraw', UserAuthMiddleware, async (req, res) => {
+  try {
+    const user = await UserModel.findById(req.user);
+
+    if (user.accountBalance === 0) {
+      return res.status(201).json({
+        message: 'Insufficient Funds!!',
+      });
+    }
+
+    if (req.body.amount > user.accountBalance) {
+      return res.status(201).json({
+        message: 'Insufficient Funds!!',
+      });
+    }
+
+    const ref = refGen(15);
+
+    const withdrawDoc = new WithdrawalModel({
+      accountNumber: req.body.accountNumber,
+      routingNumber: req.body.routingNumber,
+      bankName: req.body.bankName,
+      amount: req.body.amount,
+      status: 'processing',
+      ref,
+      date: new Date(),
+    });
+
+    // const tra
+
+    withdrawDoc.save();
+
+    return res.status(200).json({
+      message: 'Processing',
     });
   } catch (error) {
     return res.status(500).json({

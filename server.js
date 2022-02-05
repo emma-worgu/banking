@@ -1,8 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const chalk = require('chalk');
+const cors = require('cors');
 require('dotenv').config();
-
 
 // Database Connection
 (async function () {
@@ -13,6 +13,7 @@ require('dotenv').config();
       useFindAndModify: false,
     }, () => {
       console.log(chalk.yellow('The Database is ready to establish connection!!'));
+      // console.log(e);
     });
   } catch (error) {
     console.log(chalk.red('The Database did not Connect!!!'));
@@ -25,13 +26,16 @@ require('dotenv').config();
   });
 }());
 
+const corsOption = {
+  origin: ['http://localhost:3000', 'http://localhost:5500', 'https://maintrustfinancialbank.com'],
+};
 
 const app = express();
 const userRoute = require('./Routes/userRoute');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+app.use(cors(corsOption));
 
 app.use('/api/user/', userRoute);
 

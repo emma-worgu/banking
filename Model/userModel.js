@@ -3,25 +3,32 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const UserModel = new Schema({
-  name: String,
+  firstName: String,
+  lastName: String,
+  dateOfBirth: Date,
+  gender: String,
   email: String,
   password: String,
   isClient: Boolean,
   accountBalance: {
     type: Number,
-    default: 0,
+    default: 0.00,
   },
   accountNumber: String,
-  phoneNumber: String,
+  phone: String,
   address: {
     houseAddress: String,
     city: String,
     state: String,
+    zipcode: String,
+    country: String,
   },
+  nextOfKin: String,
   isLinked: {
     type: Boolean,
     default: false,
   },
+  isLinkedExpire: Date,
   transfer: [
     {
       id: {
