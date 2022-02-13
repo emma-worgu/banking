@@ -15,6 +15,7 @@ const UserModel = new Schema({
     default: 0.00,
   },
   accountNumber: String,
+  routingNumber: String,
   phone: String,
   address: {
     houseAddress: String,
