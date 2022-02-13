@@ -216,6 +216,7 @@ route.get('/', UserAuthMiddleware, async (req, res) => {
         phone: user.phone,
         address: user.address,
         acctNumber: user.accountNumber,
+        routingNumber: user.routingNumber,
         gender: user.gender,
         isClient: user.isClient,
         accountBalance: user.accountBalance,
