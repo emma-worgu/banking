@@ -58,6 +58,21 @@ route.post('/register', async (req, res) => {
     };
 
     await generateAccountNumber();
+    
+    let routingNumber;
+
+    const generateRoutingNumber = async () => {
+      const routeNumber = Math.floor(Math.random() * 1000000000);
+      const acctNumberExist = await UserModel.findOne({ routeNumber });
+
+      if (acctNumberExist) {
+        generateRoutingNumber();
+      }
+
+      routingNumber = routeNumber;
+    };
+
+    await generateRoutingNumber();
 
     // await ipLookup(req.body.ip, (err, data) => {
     //   if (err) {
@@ -106,6 +121,7 @@ route.post('/register', async (req, res) => {
       isClient,
       ipAddress: req.body.ip,
       accountNumber,
+      routingNumber,
       password: hashedPassword,
     });
 
