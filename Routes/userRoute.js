@@ -161,7 +161,7 @@ route.post('/register', async (req, res) => {
 });
 
 route.post('/login', async (req, res) => {
-  console.log(req.body):
+  console.log(req.body);
   const { error } = loginValidation(req.body);
   if (error) {
     return res.status(400).json(error.details[0].message);
