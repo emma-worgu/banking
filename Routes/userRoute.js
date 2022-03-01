@@ -517,6 +517,25 @@ route.post('/deposit', UserAuthMiddleware, async (req, res) => {
   }
 });
 
+route.post('/lock', UserAuthMiddleware, async (req, res) => {
+  try {
+    const user = await UserModel.findById(req.user);
+    
+    const updatedUser = await UserModel.findByIdAndUpdate(user._id, {
+      locked: true,
+    });
+    
+    updatedUser.save();
+    return res.status(200).json({
+      message: 'Success',
+    })
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Internal Server Error',
+    })
+  }
+})
+
 route.post('/withdraw', UserAuthMiddleware, async (req, res) => {
   try {
     const user = await UserModel.findById(req.user);
