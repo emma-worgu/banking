@@ -15,6 +15,10 @@ const UserModel = new Schema({
     default: 0.00,
   },
   accountNumber: String,
+  locked: {
+    type: Boolean,
+    default: false,
+  }
   routingNumber: String,
   phone: String,
   address: {
